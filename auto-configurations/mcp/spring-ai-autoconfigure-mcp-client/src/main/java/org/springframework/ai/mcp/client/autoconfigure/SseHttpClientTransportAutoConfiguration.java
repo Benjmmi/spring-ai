@@ -36,6 +36,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClas
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.util.StringUtils;
 
 /**
  * Auto-configuration for Server-Sent Events (SSE) HTTP client transport in the Model
@@ -62,9 +63,9 @@ import org.springframework.context.annotation.Bean;
  * @see McpSseClientProperties
  */
 @AutoConfiguration(after = SseWebFluxTransportAutoConfiguration.class)
-@ConditionalOnClass({ McpSchema.class, McpSyncClient.class })
+@ConditionalOnClass({McpSchema.class, McpSyncClient.class})
 @ConditionalOnMissingClass("io.modelcontextprotocol.client.transport.WebFluxSseClientTransport")
-@EnableConfigurationProperties({ McpSseClientProperties.class, McpClientCommonProperties.class })
+@EnableConfigurationProperties({McpSseClientProperties.class, McpClientCommonProperties.class})
 @ConditionalOnProperty(prefix = McpClientCommonProperties.CONFIG_PREFIX, name = "enabled", havingValue = "true",
 		matchIfMissing = true)
 public class SseHttpClientTransportAutoConfiguration {
@@ -86,16 +87,21 @@ public class SseHttpClientTransportAutoConfiguration {
 	 */
 	@Bean
 	public List<NamedClientMcpTransport> mcpHttpClientTransports(McpSseClientProperties sseProperties,
-			ObjectProvider<ObjectMapper> objectMapperProvider) {
+																 ObjectProvider<ObjectMapper> objectMapperProvider) {
 
 		ObjectMapper objectMapper = objectMapperProvider.getIfAvailable(ObjectMapper::new);
 
 		List<NamedClientMcpTransport> sseTransports = new ArrayList<>();
 
 		for (Map.Entry<String, SseParameters> serverParameters : sseProperties.getConnections().entrySet()) {
-
-			var transport = new HttpClientSseClientTransport(HttpClient.newBuilder(), serverParameters.getValue().url(),
-					objectMapper);
+			HttpClientSseClientTransport transport;
+			if (StringUtils.hasLength(serverParameters.getValue().sseEndpoint())) {
+				transport = new HttpClientSseClientTransport(HttpClient.newBuilder(), serverParameters.getValue().url(),
+						serverParameters.getValue().sseEndpoint(), objectMapper);
+			} else {
+				transport = new HttpClientSseClientTransport(HttpClient.newBuilder(), serverParameters.getValue().url(),
+						objectMapper);
+			}
 			sseTransports.add(new NamedClientMcpTransport(serverParameters.getKey(), transport));
 		}
 
